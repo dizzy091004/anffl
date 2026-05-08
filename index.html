@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이지 피직스 (Easy Physics)</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Matter.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Canvas Confetti for Gamification -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Jua Font for casual look -->
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header neumorphic">
+            <h1>이지 피직스 🎈</h1>
+            <div class="tabs">
+                <button class="tab-btn active" data-target="sandbox">자유낙하 샌드박스 🍉</button>
+                <button class="tab-btn" data-target="puzzle">돌림힘 퍼즐 ⚖️</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- 자유낙하 샌드박스 탭 -->
+            <section id="sandbox" class="tab-content active neumorphic-inset">
+                <div class="controls">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="vacuum-toggle">
+                        <span class="slider neumorphic"></span>
+                    </label>
+                    <span id="vacuum-label" class="badge">💨 공기 저항 (일반 모드)</span>
+                </div>
+                <div class="physics-area" id="sandbox-area">
+                    <!-- Matter.js 캔버스 -->
+                </div>
+                <div class="inventory neumorphic">
+                    <h3>오브젝트를 상단으로 끌어다 놓으세요! (Drag & Drop)</h3>
+                    <div class="items">
+                        <div class="draggable-item neumorphic" draggable="true" data-type="watermelon">🍉 수박 (무거움)</div>
+                        <div class="draggable-item neumorphic" draggable="true" data-type="bear">🧸 곰인형 (보통/저항큼)</div>
+                        <div class="draggable-item neumorphic" draggable="true" data-type="feather">🪶 깃털 (가벼움)</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 돌림힘 퍼즐 탭 -->
+            <section id="puzzle" class="tab-content neumorphic-inset">
+                <div class="controls">
+                    <span class="badge">목표: 시소를 수평으로 맞추세요! ⚖️</span>
+                </div>
+                <div class="physics-area" id="puzzle-area">
+                    <!-- Matter.js 캔버스 -->
+                </div>
+                <div class="inventory neumorphic">
+                    <h3>동물을 시소에 끌어다 올려 평형을 맞추세요!</h3>
+                    <div class="items">
+                        <div class="draggable-item neumorphic puzzle-item" draggable="true" data-type="squirrel">🐿️ 다람쥐 (1kg)</div>
+                        <div class="draggable-item neumorphic puzzle-item" draggable="true" data-type="rabbit">🐇 토끼 (2kg)</div>
+                        <div class="draggable-item neumorphic puzzle-item" draggable="true" data-type="elephant">🐘 코끼리 (4kg)</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
