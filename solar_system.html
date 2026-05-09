@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 태양계 탐험</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000010; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        
+        #ui-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; overflow: hidden; }
+        
+        #search-container { position: absolute; top: 20px; left: 20px; pointer-events: auto; }
+        #search-input { padding: 12px 20px; width: 250px; border-radius: 25px; border: 1px solid rgba(255,255,255,0.3); background: rgba(10,10,42,0.8); color: white; outline: none; font-size: 15px; backdrop-filter: blur(5px); transition: border-color 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        #search-input:focus { border-color: #64B5F6; }
+        #search-results { margin-top: 10px; background: rgba(10,10,42,0.9); border: 1px solid rgba(255,255,255,0.2); border-radius: 15px; max-height: 300px; overflow-y: auto; display: none; backdrop-filter: blur(10px); }
+        .search-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 14px; }
+        .search-item:last-child { border-bottom: none; }
+        .search-item:hover { background: rgba(255,255,255,0.1); }
+        
+
+        
+        #tooltip { position: absolute; padding: 6px 12px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; display: none; pointer-events: none; z-index: 20; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); transform: translate(15px, 15px); }
+        
+        #info-panel { position: absolute; top: 0; right: -320px; width: 320px; height: 100%; background: rgba(10,10,42,0.95); transition: right 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); pointer-events: auto; box-sizing: border-box; padding: 30px 20px; overflow-y: auto; z-index: 100; box-shadow: -5px 0 25px rgba(0,0,0,0.7); backdrop-filter: blur(10px); }
+        #info-panel.open { right: 0; }
+        #close-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #aaa; transition: color 0.2s; }
+        #close-btn:hover { color: white; }
+        #planet-title { font-size: 28px; margin-top: 10px; margin-bottom: 20px; border-bottom: 2px solid rgba(100,181,246,0.5); padding-bottom: 15px; font-weight: bold; color: #64B5F6; }
+        #info-content { font-size: 14.5px; line-height: 1.7; color: #ddd; }
+        
+
+        
+        .spinner { border: 3px solid rgba(255,255,255,0.1); border-left-color: #64B5F6; border-radius: 50%; width: 36px; height: 36px; animation: spin 1s linear infinite; margin: 40px auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { color: #ff5252; font-weight: 500; text-align: center; margin-top: 20px; }
+        
+        #info-panel::-webkit-scrollbar { width: 6px; }
+        #info-panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        #info-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        #info-panel::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+        
+        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,10,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(8px); transition: opacity 1s ease, visibility 1s; pointer-events: auto; }
+        #start-screen h1 { color: #64B5F6; font-size: 54px; margin-bottom: 15px; text-shadow: 0 0 25px rgba(100,181,246,0.8); letter-spacing: 3px; font-weight: 800; text-align: center; }
+        #start-screen p { color: #aaa; font-size: 16px; margin-bottom: 50px; letter-spacing: 1px; text-align: center; line-height: 1.6; }
+        #start-btn { padding: 18px 50px; font-size: 24px; font-weight: bold; color: white; background: transparent; border: 2px solid #64B5F6; border-radius: 40px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 0 20px rgba(100,181,246,0.3) inset, 0 0 20px rgba(100,181,246,0.3); text-transform: uppercase; letter-spacing: 2px; }
+        #start-btn:hover { background: rgba(100,181,246,0.2); box-shadow: 0 0 30px rgba(100,181,246,0.6) inset, 0 0 30px rgba(100,181,246,0.6); text-shadow: 0 0 10px white; transform: scale(1.05); }
+        #start-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="tooltip"></div>
+    
+    <div id="start-screen">
+        <h1>우주 탐험 시뮬레이터</h1>
+        <p>마우스 드래그: 시점 이동 | 마우스 휠: 확대/축소 | 스페이스바: 중앙 복귀<br>천체를 클릭하여 상세 정보를 확인하세요.</p>
+        <button id="start-btn">탐험 시작</button>
+        <button id="start-settings-btn" style="margin-top: 20px; background: none; border: none; color: #aaa; font-size: 16px; cursor: pointer; text-decoration: underline;">⚙️ 설정 (음악 볼륨)</button>
+    </div>
+
+    <div id="settings-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 250; backdrop-filter: blur(2px);"></div>
+    <div id="settings-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0a0a2a; padding: 30px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.2); z-index: 300; box-shadow: 0 10px 40px rgba(0,0,0,0.8); width: 280px; text-align: left;">
+        <div id="settings-close" style="position: absolute; top: 15px; right: 20px; cursor: pointer; font-size: 24px; color: #aaa;">×</div>
+        <h3 style="color: #64B5F6; margin-top: 0; text-align: center;">설정</h3>
+        <p style="color: #ddd; margin-top: 25px; margin-bottom: 10px; font-size: 15px;">🎵 우주 배경음악 볼륨</p>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.5" style="width: 100%; cursor: pointer;">
+        <p style="font-size: 12px; color: #888; margin-top: 15px; line-height: 1.4;">* 자체 오디오 신디사이저(Web Audio API)를 사용해 코드로 직접 생성된 웅장한 우주 앰비언트 사운드입니다.</p>
+        <div style="text-align: center; margin-top: 20px;">
+            <button id="settings-ok" style="padding: 10px 30px; background: #1E88E5; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">확인</button>
+        </div>
+    </div>
+
+    <div id="ui-container">
+        <button id="main-settings-btn" title="설정" style="position: absolute; top: 20px; right: 20px; font-size: 24px; cursor: pointer; pointer-events: auto; background: rgba(10,10,42,0.8); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; color: white; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">⚙️</button>
+        <div id="search-container">
+            <input type="text" id="search-input" placeholder="천체 검색..." autocomplete="off">
+            <div id="search-results"></div>
+        </div>
+
+        <div id="info-panel">
+            <div id="close-btn">×</div>
+            <div id="planet-title">이름</div>
+            <div id="info-content"></div>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // 천체 데이터 정의
+        const celestialBodies = [
+            { name: "태양", radius: 6, distance: 0, speed: 0, color: 0xffcc00 },
+            { name: "수성", radius: 0.5, distance: 12, speed: 0.008, color: 0x9E9E9E },
+            { name: "금성", radius: 0.9, distance: 16, speed: 0.006, color: 0xF5E642 },
+            { name: "지구", radius: 1, distance: 22, speed: 0.004, color: 0x1E88E5 },
+            { name: "화성", radius: 0.6, distance: 28, speed: 0.0032, color: 0xE53935 },
+            { name: "목성", radius: 2.8, distance: 42, speed: 0.0016, color: 0xC88B3A },
+            { name: "토성", radius: 2.4, distance: 55, speed: 0.0012, color: 0xE8C84A, hasRing: true },
+            { name: "천왕성", radius: 1.6, distance: 68, speed: 0.0008, color: 0x7FFFD4 },
+            { name: "해왕성", radius: 1.5, distance: 80, speed: 0.0006, color: 0x1565C0 },
+            
+            // 왜소행성
+            { name: "명왕성", radius: 0.3, distance: 92, speed: 0.0004, color: 0xdddddd },
+            { name: "세레스", radius: 0.2, distance: 33, speed: 0.002, color: 0x888888 },
+            { name: "에리스", radius: 0.3, distance: 105, speed: 0.0002, color: 0xaaaaaa },
+            
+            // 소행성
+            { name: "베스타", radius: 0.15, distance: 31, speed: 0.0024, color: 0x777777 },
+            { name: "팔라스", radius: 0.15, distance: 34, speed: 0.0022, color: 0x666666 }
+        ];
+
+        const moons = [
+            { name: "달", parent: "지구", radius: 0.25, distance: 2.5, speed: 0.02, color: 0xcccccc },
+            { name: "포보스", parent: "화성", radius: 0.12, distance: 1.5, speed: 0.03, color: 0x888888 },
+            { name: "데이모스", parent: "화성", radius: 0.1, distance: 2.2, speed: 0.02, color: 0x777777 },
+            { name: "이오", parent: "목성", radius: 0.35, distance: 4.5, speed: 0.04, color: 0xffffaa },
+            { name: "유로파", parent: "목성", radius: 0.3, distance: 5.5, speed: 0.03, color: 0xaaaaff },
+            { name: "가니메데", parent: "목성", radius: 0.45, distance: 7, speed: 0.02, color: 0xaaaaaa },
+            { name: "칼리스토", parent: "목성", radius: 0.4, distance: 9, speed: 0.015, color: 0x888888 },
+            { name: "타이탄", parent: "토성", radius: 0.45, distance: 6, speed: 0.02, color: 0xffaa00 },
+            { name: "엔셀라두스", parent: "토성", radius: 0.2, distance: 4, speed: 0.03, color: 0xeeeeee },
+            { name: "트리톤", parent: "해왕성", radius: 0.35, distance: 3.5, speed: 0.025, color: 0xaaffaa }
+        ];
+
+        // Three.js 초기화
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000010);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500);
+        camera.position.set(0, 300, 500); // 시작 전 멀리서 대기
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 조명
+        scene.add(new THREE.AmbientLight(0x222222));
+        const sunLight = new THREE.PointLight(0xffffff, 2.5, 300);
+        scene.add(sunLight);
+
+        // 별 배경
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 2000;
+        const posArray = new Float32Array(starsCount * 3);
+        for(let i = 0; i < starsCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 600;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const starsMat = new THREE.PointsMaterial({ size: 0.7, color: 0xffffff, transparent: true, opacity: 0.8 });
+        const starMesh = new THREE.Points(starsGeo, starsMat);
+        scene.add(starMesh);
+
+        // 천체 생성 함수
+        const allBodyObjects = [];
+        const bodyMeshes = [];
+
+        function createOrbitLine(distance) {
+            const geo = new THREE.BufferGeometry();
+            const points = [];
+            for (let i = 0; i <= 64; i++) {
+                const angle = (i / 64) * Math.PI * 2;
+                points.push(new THREE.Vector3(Math.cos(angle) * distance, 0, Math.sin(angle) * distance));
+            }
+            geo.setFromPoints(points);
+            const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
+            return new THREE.Line(geo, mat);
+        }
+
+        // 태양 생성
+        const sunData = celestialBodies[0];
+        const sunGeo = new THREE.SphereGeometry(sunData.radius, 32, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: sunData.color });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        scene.add(sunMesh);
+        allBodyObjects.push({ mesh: sunMesh, data: sunData, isPlanet: false });
+        bodyMeshes.push(sunMesh);
+
+        // 행성 및 소행성 생성
+        celestialBodies.slice(1).forEach(data => {
+            const geo = new THREE.SphereGeometry(data.radius, 32, 32);
+            const mat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.6 });
+            const mesh = new THREE.Mesh(geo, mat);
+            
+            scene.add(mesh);
+            scene.add(createOrbitLine(data.distance));
+            
+            if (data.hasRing) {
+                const ringGeo = new THREE.TorusGeometry(data.radius * 1.6, 0.3, 16, 100);
+                const ringMat = new THREE.MeshStandardMaterial({ color: data.color, transparent: true, opacity: 0.7, roughness: 0.5 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2 - 0.2;
+                mesh.add(ring);
+            }
+            
+            const obj = { mesh: mesh, data: data, angle: Math.random() * Math.PI * 2, isPlanet: true };
+            allBodyObjects.push(obj);
+            bodyMeshes.push(mesh);
+        });
+
+        // 위성 생성
+        moons.forEach(data => {
+            const parentObj = allBodyObjects.find(obj => obj.data.name === data.parent);
+            if (!parentObj) return;
+            
+            const geo = new THREE.SphereGeometry(data.radius, 16, 16);
+            const mat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.8 });
+            const mesh = new THREE.Mesh(geo, mat);
+            scene.add(mesh);
+            
+            const orbitLine = createOrbitLine(data.distance);
+            parentObj.mesh.add(orbitLine);
+            
+            const obj = { mesh: mesh, data: data, angle: Math.random() * Math.PI * 2, parentObj: parentObj, isMoon: true };
+            allBodyObjects.push(obj);
+            bodyMeshes.push(mesh);
+        });
+
+        // 커스텀 트윈(Tween) 엔진
+        const tweens = [];
+        function tween(obj, target, duration, easing) {
+            const startObj = {};
+            for (let key in target) { startObj[key] = obj[key]; }
+            const startTime = performance.now();
+            return new Promise((resolve) => {
+                tweens.push({ obj, startObj, target, duration, startTime, easing, resolve });
+            });
+        }
+        function updateTweens(time) {
+            for (let i = tweens.length - 1; i >= 0; i--) {
+                const t = tweens[i];
+                const elapsed = time - t.startTime;
+                const progress = Math.min(elapsed / t.duration, 1);
+                const ease = t.easing(progress);
+                for (let key in t.target) {
+                    t.obj[key] = t.startObj[key] + (t.target[key] - t.startObj[key]) * ease;
+                }
+                if (progress === 1) {
+                    t.resolve();
+                    tweens.splice(i, 1);
+                }
+            }
+        }
+        const EasingCubicOut = t => --t * t * t + 1;
+
+        // 카메라 포커스 로직
+        let selectedBody = null;
+        let isTweening = false;
+
+        function focusOnBody(bodyObj) {
+            selectedBody = bodyObj;
+            const targetPos = new THREE.Vector3();
+            bodyObj.mesh.getWorldPosition(targetPos);
+            
+            const radius = bodyObj.data.radius;
+            const offset = radius * 5 + 4; 
+            
+            isTweening = true;
+            Promise.all([
+                tween(camera.position, { x: targetPos.x + offset, y: targetPos.y + offset * 0.5, z: targetPos.z + offset }, 1200, EasingCubicOut),
+                tween(controls.target, { x: targetPos.x, y: targetPos.y, z: targetPos.z }, 1200, EasingCubicOut)
+            ]).then(() => {
+                isTweening = false;
+            });
+            
+            openPanel(bodyObj.data.name);
+        }
+
+        // Raycaster 및 인터랙션
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const tooltip = document.getElementById('tooltip');
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(bodyMeshes);
+            
+            if (intersects.length > 0) {
+                const obj = allBodyObjects.find(o => o.mesh === intersects[0].object);
+                if (obj) {
+                    tooltip.style.display = 'block';
+                    tooltip.textContent = obj.data.name;
+                    tooltip.style.left = e.clientX + 'px';
+                    tooltip.style.top = e.clientY + 'px';
+                    document.body.style.cursor = 'pointer';
+                }
+            } else {
+                tooltip.style.display = 'none';
+                document.body.style.cursor = 'default';
+            }
+        });
+
+        renderer.domElement.addEventListener('click', () => {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(bodyMeshes);
+            if (intersects.length > 0) {
+                const obj = allBodyObjects.find(o => o.mesh === intersects[0].object);
+                if (obj) focusOnBody(obj);
+            }
+        });
+
+        // 자체 제작 우주 앰비언트 신디사이저 (인터스텔라풍 웅장한 드론 사운드)
+        let audioCtx, masterGain;
+        let isAudioInit = false;
+
+        function initProceduralAudio() {
+            if (isAudioInit) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain();
+            
+            // 초기 볼륨 설정 (갑작스러운 큰 소리 방지, 0에서 시작)
+            masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            const userVol = document.getElementById('volume-slider').value * 0.4; // 전체 볼륨을 부드럽게 40%로 축소
+            masterGain.gain.linearRampToValueAtTime(userVol, audioCtx.currentTime + 4); // 4초에 걸쳐 부드럽게 페이드인
+            masterGain.connect(audioCtx.destination);
+
+            // 거슬리지 않는 아주 깊은 저음 위주의 오실레이터 (톱니파 제거)
+            const droneGain = audioCtx.createGain();
+            droneGain.gain.value = 0.15; // 오실레이터 자체의 믹스 레벨을 크게 낮춤
+
+            const osc1 = audioCtx.createOscillator(); osc1.type = 'sine'; osc1.frequency.value = 43.65; // F1 (깊고 무거운 저음)
+            const osc2 = audioCtx.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = 43.2;  // 코러스 효과
+            const osc3 = audioCtx.createOscillator(); osc3.type = 'triangle'; osc3.frequency.value = 65.41; // C2 (부드러운 배음)
+            const osc4 = audioCtx.createOscillator(); osc4.type = 'sine'; osc4.frequency.value = 87.31; // F2
+
+            osc1.connect(droneGain);
+            osc2.connect(droneGain);
+            osc3.connect(droneGain);
+            osc4.connect(droneGain);
+
+            // 듣기 싫은 고음을 완전히 잘라내는 강력한 로우패스 필터
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 120; // 120Hz 컷오프 (매우 먹먹하고 깊은 우주 소리)
+            filter.Q.value = 0.5;
+
+            // 천천히 숨쉬는 느낌을 주는 LFO
+            const lfo = audioCtx.createOscillator();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.03; // 약 33초의 아주 느린 주기
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 40; // 주파수 변화폭 최소화
+            lfo.connect(lfoGain);
+            lfoGain.connect(filter.frequency);
+
+            // 딜레이 (거대한 공간감)
+            const delay = audioCtx.createDelay(3.0);
+            delay.delayTime.value = 1.5;
+            const feedback = audioCtx.createGain();
+            feedback.gain.value = 0.4;
+            
+            droneGain.connect(filter);
+            filter.connect(delay);
+            delay.connect(feedback);
+            feedback.connect(delay);
+
+            filter.connect(masterGain);
+            delay.connect(masterGain);
+
+            osc1.start(); osc2.start(); osc3.start(); osc4.start(); lfo.start();
+            isAudioInit = true;
+        }
+
+        function setVolume(val) {
+            if (masterGain && audioCtx) {
+                // 부드러운 스케일링 적용 (최대 볼륨 자체를 40%로 제한하여 귀 아픔 방지)
+                masterGain.gain.setTargetAtTime(val * 0.4, audioCtx.currentTime, 0.3);
+            }
+        }
+
+        // 설정 모달 로직
+        const settingsModal = document.getElementById('settings-modal');
+        const settingsOverlay = document.getElementById('settings-overlay');
+        
+        document.getElementById('start-settings-btn').addEventListener('click', () => {
+            settingsModal.style.display = 'block';
+            settingsOverlay.style.display = 'block';
+        });
+        
+        document.getElementById('main-settings-btn').addEventListener('click', () => {
+            settingsModal.style.display = 'block';
+            settingsOverlay.style.display = 'block';
+        });
+
+        function closeSettings() {
+            settingsModal.style.display = 'none';
+            settingsOverlay.style.display = 'none';
+        }
+        document.getElementById('settings-close').addEventListener('click', closeSettings);
+        document.getElementById('settings-overlay').addEventListener('click', closeSettings);
+        document.getElementById('settings-ok').addEventListener('click', closeSettings);
+
+        document.getElementById('volume-slider').addEventListener('input', (e) => {
+            setVolume(e.target.value);
+        });
+
+        // 시작 화면 로직
+        document.getElementById('ui-container').style.opacity = '0';
+        document.getElementById('ui-container').style.transition = 'opacity 1.5s ease';
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('ui-container').style.opacity = '1';
+            
+            // 절차적 생성 우주 앰비언트 재생
+            initProceduralAudio();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            
+            // 시점이 먼 곳에서 원래 위치로 스윽 이동
+            isTweening = true;
+            Promise.all([
+                tween(camera.position, { x: 0, y: 40, z: 60 }, 2500, EasingCubicOut),
+                tween(controls.target, { x: 0, y: 0, z: 0 }, 2500, EasingCubicOut)
+            ]).then(() => {
+                isTweening = false;
+            });
+        });
+
+        // 스페이스바를 누르면 태양계 전체가 보이도록 시점 초기화
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                selectedBody = null;
+                document.getElementById('info-panel').classList.remove('open');
+                
+                isTweening = true;
+                Promise.all([
+                    tween(camera.position, { x: 0, y: 120, z: 180 }, 1500, EasingCubicOut),
+                    tween(controls.target, { x: 0, y: 0, z: 0 }, 1500, EasingCubicOut)
+                ]).then(() => {
+                    isTweening = false;
+                });
+            }
+        });
+
+        // 애니메이션 루프
+        function animate(time) {
+            requestAnimationFrame(animate);
+            updateTweens(time);
+            
+            allBodyObjects.forEach(obj => {
+                if(obj.isPlanet) {
+                    obj.angle += obj.data.speed;
+                    obj.mesh.position.x = Math.cos(obj.angle) * obj.data.distance;
+                    obj.mesh.position.z = Math.sin(obj.angle) * obj.data.distance;
+                    obj.mesh.rotation.y += 0.01;
+                } else if (obj.isMoon) {
+                    obj.angle += obj.data.speed;
+                    let parentMesh = obj.parentObj.mesh;
+                    obj.mesh.position.x = parentMesh.position.x + Math.cos(obj.angle) * obj.data.distance;
+                    obj.mesh.position.z = parentMesh.position.z + Math.sin(obj.angle) * obj.data.distance;
+                    obj.mesh.rotation.y += 0.02;
+                } else {
+                    obj.mesh.rotation.y += 0.005;
+                }
+            });
+            
+            if (selectedBody && !isTweening) {
+                const targetPos = new THREE.Vector3();
+                selectedBody.mesh.getWorldPosition(targetPos);
+                controls.target.copy(targetPos);
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        requestAnimationFrame(animate);
+
+        // 창 크기 조절 대응
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // UI 및 API 로직
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+        const infoPanel = document.getElementById('info-panel');
+        const panelTitle = document.getElementById('planet-title');
+        const panelContent = document.getElementById('info-content');
+        
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            searchResults.innerHTML = '';
+            if (query.length === 0) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            const matches = allBodyObjects.filter(obj => obj.data.name.toLowerCase().includes(query));
+            if (matches.length > 0) {
+                searchResults.style.display = 'block';
+                matches.forEach(obj => {
+                    const div = document.createElement('div');
+                    div.className = 'search-item';
+                    div.textContent = obj.data.name;
+                    div.addEventListener('click', () => {
+                        focusOnBody(obj);
+                        searchResults.style.display = 'none';
+                        searchInput.value = '';
+                    });
+                    searchResults.appendChild(div);
+                });
+            } else {
+                searchResults.style.display = 'none';
+            }
+        });
+
+        document.getElementById('close-btn').addEventListener('click', () => {
+            infoPanel.classList.remove('open');
+            selectedBody = null;
+        });
+
+        // 하드코딩된 Gemini API 키
+        const apiKey = "AIzaSyD0NP3FCCLBszEysHCvYk-_uUURlxOuEfE";
+
+        // API 호출 함수
+        async function fetchPlanetInfo(planetName) {
+            let response;
+            try {
+                response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: `${planetName}에 대해 아래 형식으로 정확하게 알려줘. 고등학교 지구과학/물리 수준으로 설명해줘.\n\n**기본 정보**\n- 분류: (행성/왜소행성/위성 등)\n- 지름:\n- 질량: (지구=1 기준)\n- 태양까지 거리:\n- 공전 주기:\n- 자전 주기:\n- 평균 온도:\n- 위성 수:\n\n**특징**\n(3~4줄로 이 천체의 가장 독특한 특징 설명)\n\n**탐사 역사**\n(실제 탐사선 이름과 발견 사실 2~3가지)\n\n**관련 신화**\n(이름의 어원이 된 신화 설명)\n\n**지구과학/물리 연계**\n(고등학교 교과서와 연결되는 개념 1~2가지)`
+                            }]
+                        }]
+                    })
+                });
+            } catch (e) {
+                throw new Error('NetworkError');
+            }
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errMsg = errorData.error ? errorData.error.message : response.statusText;
+                throw new Error(`API 오류 (${response.status}): ${errMsg}`);
+            }
+            
+            const data = await response.json();
+            if (!data.candidates || data.candidates.length === 0) {
+                throw new Error('AI가 응답을 생성하지 못했습니다.');
+            }
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        async function openPanel(planetName) {
+            infoPanel.classList.add('open');
+            panelTitle.textContent = planetName;
+            panelContent.innerHTML = '<div class="spinner"></div><div style="text-align:center; color:#aaa;">정보를 불러오는 중...</div>';
+            
+            try {
+                const text = await fetchPlanetInfo(planetName);
+                const formattedText = text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #64B5F6; font-size: 1.15em; display: block; margin-top: 25px; margin-bottom: 8px;">$1</strong>')
+                    .replace(/\n/g, '<br>')
+                    .replace(/(<br>\s*){3,}/g, '<br><br>');
+                panelContent.innerHTML = formattedText;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                if (error.message === 'NetworkError') {
+                    panelContent.innerHTML = '<div class="error">네트워크 연결을 확인해주세요.</div>';
+                } else {
+                    panelContent.innerHTML = `<div class="error" style="font-size:13px; line-height:1.4;">정보를 불러오지 못했어요.<br><br><span style="color:#ff8a80;">${error.message}</span></div>`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
